@@ -296,16 +296,16 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
 
     IERC20 public _exoContract;
     IERC20 public _evoContract;
-    IPancakePair public _poolContract; // 薄饼交易对合约
-    address public _poolAddress; // 薄饼池子地址
-    address public _nationalTreasuryAddress; // 国库地址
-    bool public _enableWhiteList; // 是否开启白名单验证，true是开启， false 关闭
+    IPancakePair public _poolContract; 
+    address public _poolAddress; 
+    address public _nationalTreasuryAddress; 
+    bool public _enableWhiteList; 
     
-    // FLDI=繁荣币市场流通加权平均值
+    // FLDI
     uint256 public _FLDI;    
-    // EXGE=繁荣币近一周兑换总量系数加权值
+    // EXGE
     uint256 public _EXGE;
-    // M=繁荣币市场美元价格
+    // M
     uint256 public _M;
 
 
@@ -334,11 +334,11 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
 
     function swapExoToCme(uint256 exoAmount) public {
         require(_exoContract.balanceOf(msg.sender) >= exoAmount, "CME: insufficient balance of EXO token");
-        // 探索币兑换繁荣币公式：E/（M*10000）*（1/FLDI*EXGE）
+        // ：E/（M*10000）*（1/FLDI*EXGE）
         uint256 cmeAmount = exoAmount/(_M*10000*_FLDI*_EXGE);
         require(balanceOf(address(this)) > cmeAmount, "CME: insufficient balance of CME token");
         transfer(msg.sender, cmeAmount);
-        // 直接烧掉
+        // 
         _exoContract.burn(exoAmount);
     }
 
@@ -410,12 +410,12 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
 
         
         if(_enableWhiteList){
-            // 白名单功能开启
+            // 
             if(from == _pool){
-                // 买入，to地址得是白名单
+                // 买
                 require(_whiteList[to].updateTime > 0 && _whiteList[to].isWhite, "CME: to address should be in white list");
             }else if(to == _pool){
-                // 卖出，from地址得是白名单
+                // 
                 require(_whiteList[from].updateTime > 0 && _whiteList[from].isWhite, "CME: from address should be in white list");
             }
         }
@@ -423,15 +423,15 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
         _beforeTokenTransfer(from, to, amount);
 
         _balances[from] -= amount;
-        // 流通手续费8%，买卖，抵押撤池，都收手续费， 其中3%销毁，5%补充国库
+        // 
         if (from == _pool && _pool != address(0)) {
-            // 买入，或者解除池子， 相当于CME从池子出来， from 是pool
+            //
 
-            // 销毁 3%
+            // 
             _balances[address(0)] += amount*3/100;
             emit Transfer(from, address(0), amount*3/100);
 
-            // 国库 5%
+            // 
             _balances[_nationalTreasuryAddress] += amount/20;
             emit Transfer(from, _nationalTreasuryAddress, amount/20);
 
@@ -439,13 +439,13 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
             emit Transfer(from, to, amount*92/100);
             
         } else if (to == _pool && _pool != address(0)) {
-            // 卖出，或者添加池子， 相当于CME进池子里去， to 是pool
+            // 
 
-            // 销毁 3%
+            // 
             _balances[address(0)] += amount*3/100;
             emit Transfer(from, address(0), amount*3/100);
 
-            // 国库 5%
+            // 
             _balances[_nationalTreasuryAddress] += amount/20;
             emit Transfer(from, _nationalTreasuryAddress, amount/20);
 
@@ -453,7 +453,7 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
             emit Transfer(from, to, amount*92/100);
             
         } else {
-            // 普通转账
+            // 
             _balances[to] += amount;
             emit Transfer(from, to, amount);
 
@@ -469,13 +469,10 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
     ) internal virtual {
     }
 
-    // 质押CME 可获得 rebase 奖励，固定APY 502,4835.58%，5分钟一次复利，一天复利288次
-    // 算出来的 一年=105120个5分钟，1.000102980313^105120=50248.3578
-    // 但是solidity不支持小数运算，所以得简单用平均值求和1CME 一年后是 50248.3558个
-    // 每五分钟是50248.3558/105120 = 0.47801 = 5024835580/10512000000    
+     
     function calcPledgeReward(uint256 amount, uint startTime) public view returns(uint256) {
          // amount *  (block.timestamp - start)/5 * (5024835580/10512000000);
-         // 变换后如下：
+         // 
          return amount *  (block.timestamp - startTime) * 5024835580/52560000000;
     }
 
@@ -486,7 +483,7 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
     function pledgeCme(uint256 amount) public {
         require(balanceOf(msg.sender) >= amount, "CME: insufficient CME balance of msg.sender");
         transferFrom(msg.sender, address(this), amount);
-        // 把上次的收益结算一下，再增加这次抵押的
+        // 
         _pledges[msg.sender].amount =  calcPledgeReward(_pledges[msg.sender].amount, _pledges[msg.sender].updateTime);
         _pledges[msg.sender].amount +=  amount;
         _pledges[msg.sender].updateTime = block.timestamp;
@@ -498,27 +495,23 @@ contract ProsperityCoin is  Context, IERC20, IERC20Metadata, Ownable {
         uint256 currentAmount = calcPledgeReward(_pledges[msg.sender].updateTime, _pledges[msg.sender].amount);        
         require(currentAmount >= amount, "CME: insufficient CME balance of msg.sender");
         transfer(msg.sender, amount);
-        // 重新设置amount
+        // 
         _pledges[msg.sender].amount =  currentAmount - amount;
         _pledges[msg.sender].updateTime = block.timestamp;
     }
 
-    // 进化币兑换繁荣币：收取繁荣币5%+收取100%探索币燃烧掉（探索币燃烧量=进化币*100），5%补充国库
+    // 
     function swapEvoToCme(uint256 evoAmount) public {
-        // 探索币燃烧量=进化币*100
+        //
         uint256 burnExoAmount = evoAmount * 100; 
-        // 换币的人得有足够的探索币才能兑换            
+        //          
         require(_exoContract.balanceOf(msg.sender) >= burnExoAmount, "CME: insufficient EXO balance of msg.sender");
 
         require(_evoContract.balanceOf(msg.sender) >= evoAmount, "CME: insufficient EVO balance of msg.sender");
 
-        // 把进化币从用户地址上扣除，转入到evo合约地址
-        _evoContract.transferFrom(msg.sender, address(_evoContract), evoAmount*95/100); // 95%进合约地址
-        _evoContract.transferFrom(msg.sender, _nationalTreasuryAddress, evoAmount*5/100); // 5%进国库地址
-
-        // 把CME转到用户地址上, _M是繁荣币美元价，EVO对美元设计成1:1
-        transfer(msg.sender, evoAmount*95/(100*_M)); // 98%兑换成了evo
-        // 燃烧Exo
+       
+        transfer(msg.sender, evoAmount*95/(100*_M)); 
+        
         _exoContract.burn(burnExoAmount);
     }
 
